@@ -1,0 +1,22 @@
+http:
+  middlewares:
+    r7e:
+      plugin:
+        botwall:
+          recognyzeURL: http://host.docker.internal:8000/recognyze.txt
+          allowInsecureBotRulesURL: true
+          # Bot rules API: prod is the default when omitted. Dev: https://portal.dev.recognyze.ai/api/v1/bot-rules
+          # botRulesURL: https://portal.dev.recognyze.ai/api/v1/bot-rules
+          cacheTTL: 24h
+          refreshBeforeExpiry: 1h
+          decisionLogFile: /var/log/traefik/botwall_events.jsonl
+          publisherLogsInterval: 1m
+          # Recognyze publisher logs ingest endpoint. Production: https://portal.recognyze.ai/api/v1/publisher/logs/
+          # Dev:        https://portal.dev.recognyze.ai/api/v1/publisher/logs/
+          # The plugin POSTs the decision JSONL file body as application/jsonl with header X-API-KEY.
+          # publisherAPIKey is REQUIRED whenever publisherLogsURL is set; the request is rejected at startup otherwise.
+          publisherLogsURL: https://portal.recognyze.ai/api/v1/publisher/logs/
+          publisherAPIKey: CHANGE_ME
+          # Optional: only honor X-Forwarded-For / CF-Connecting-IP / X-Real-IP when the TCP peer is in these networks.
+          # Example (Docker bridge + loopback): [ "127.0.0.0/8", "172.16.0.0/12", "10.0.0.0/8" ]
+          # trustedProxyCIDRs: []
