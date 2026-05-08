@@ -1,0 +1,43 @@
+# --- OS / editor noise ---
+.DS_Store
+Thumbs.db
+*.swp
+*.swo
+*~
+.idea/
+.vscode/
+
+# --- Go build artifacts ---
+*.exe
+*.exe~
+*.dll
+*.so
+*.dylib
+*.test
+*.out
+*.coverprofile
+coverage.out
+cover.out
+bin/
+dist/
+build/
+
+# --- Test / temporary runtime files ---
+tmp/
+temp/
+*.tmp
+*.log
+*.pid
+
+# --- Local environment / secrets ---
+.env
+.env.*
+!.env.example
+*.local
+
+# --- Traefik local override configs (keep shared examples committed) ---
+traefik.local.yml
+traefik.local.yaml
+traefik/dynamic/botwall-local.yaml
+docker-compose.override.yml
+docker-compose.override.yaml

@@ -1,0 +1,9 @@
+displayName: Recognyze Botwall Plugin
+type: middleware
+import: github.com/recognyze-ai/bot-wall
+summary: Enforces Recognyze botwall policy on protected resources.
+testData:
+  botRulesFile: fixtures/botdef.json
+  botRulesURL: disabled
+  cacheTTL: 24h
+  refreshBeforeExpiry: 1h

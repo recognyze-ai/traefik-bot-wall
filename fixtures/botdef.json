@@ -1,0 +1,19 @@
+{
+  "ua_patterns": [
+    {
+      "category": "OpenAI",
+      "patterns": ["GPTBot/", "ChatGPT-User/"]
+    },
+    {
+      "category": "Google",
+      "patterns": ["Googlebot/"]
+    }
+  ],
+  "category_mappings": {
+    "ai_access_agents": ["OpenAI"],
+    "traditional_bots": ["Google"]
+  },
+  "category_patterns": {
+    "traditional_bot_patterns": ["bot", "crawler", "spider"]
+  }
+}

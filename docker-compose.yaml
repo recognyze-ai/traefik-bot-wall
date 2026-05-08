@@ -1,0 +1,35 @@
+services:
+  traefik:
+    image: traefik:v3.6
+    container_name: traefik-r7e
+    command:
+      - "--api.insecure=true"
+      - "--providers.docker=true"
+      - "--providers.docker.exposedByDefault=false"
+      - "--providers.file.directory=/etc/traefik/dynamic"
+      - "--providers.file.watch=true"
+      - "--entrypoints.web.address=:80"
+      - "--accesslog=true"
+      - "--accesslog.filepath=/var/log/traefik/access.json"
+      - "--accesslog.format=json"
+      - "--experimental.localPlugins.botwall.moduleName=github.com/recognyze-ai/bot-wall"
+    ports:
+      - "80:80"
+      - "5051:8080"
+    volumes:
+      - /var/run/docker.sock:/var/run/docker.sock:ro
+      - ./:/plugins-local/src/github.com/recognyze-ai/bot-wall
+      - ./fixtures:/fixtures:ro
+      - ./traefik/dynamic:/etc/traefik/dynamic:ro
+      - ./logs:/var/log/traefik
+    extra_hosts:
+      - "host.docker.internal:host-gateway"
+
+  myapp:
+    image: traefik/whoami
+    labels:
+      - "traefik.enable=true"
+      - "traefik.http.routers.myapp.rule=Host(`myapp.localhost`)"
+      - "traefik.http.routers.myapp.middlewares=r7e@file"
+      - "traefik.http.services.myapp.loadbalancer.server.url=http://host.docker.internal:8000"
+
