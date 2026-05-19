@@ -10,7 +10,7 @@ const defaultBotDefFileName = "defaultBotDef.json"
 var defaultBotDefPaths = []string{
 	defaultBotDefFileName,
 	"github.com/recognyze-ai/traefik-bot-wall/" + defaultBotDefFileName,
-	"/plugins-local/src/github.com/recognyze-ai/traefik-bot-wall/" + defaultBotDefFileName
+	"/plugins-local/src/github.com/recognyze-ai/traefik-bot-wall/" + defaultBotDefFileName,
 }
 	
 
