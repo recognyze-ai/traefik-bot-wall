@@ -112,6 +112,38 @@ func TestEventLoggerShipAndTruncateClearsFileContent(t *testing.T) {
 	}
 }
 
+func TestEventLoggerShipFailsOnJSONErrorField(t *testing.T) {
+	logPath := filepath.Join(t.TempDir(), "events.jsonl")
+	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		w.Header().Set("Content-Type", "application/json")
+		w.WriteHeader(http.StatusOK)
+		_, _ = w.Write([]byte(`{"error":true,"message":"rejected"}`))
+	}))
+	defer server.Close()
+
+	logger := NewEventLogger(&parsedConfig{
+		Config: Config{
+			DecisionLogFile:  logPath,
+			PublisherLogsURL: server.URL,
+		},
+		publisherLogsInterval: time.Minute,
+	})
+	req := httptest.NewRequest(http.MethodGet, "http://myapp.localhost/", nil)
+	logger.Log(BuildAccessLogEvent(req, "10.0.0.1", 200, 0))
+
+	if err := logger.shipAndTruncateOnce(); err == nil {
+		t.Fatal("expected ship to fail when JSON error field is true")
+	}
+
+	content, err := os.ReadFile(logPath)
+	if err != nil {
+		t.Fatalf("failed reading log file: %v", err)
+	}
+	if strings.TrimSpace(string(content)) == "" {
+		t.Fatal("expected log file to be preserved when ship fails")
+	}
+}
+
 func TestResolvePluginVersion(t *testing.T) {
 	tests := []struct {
 		name     string
