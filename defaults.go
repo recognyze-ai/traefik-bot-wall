@@ -1,4 +1,4 @@
-package botwall
+package traefik_bot_wall
 
 import (
 	"fmt"
@@ -9,15 +9,10 @@ const defaultBotDefFileName = "defaultBotDef.json"
 
 var defaultBotDefPaths = []string{
 	defaultBotDefFileName,
-	"r7e_botwall/" + defaultBotDefFileName,
-	"github.com/recognyze-ai/bot-wall/" + defaultBotDefFileName,
-	"github.com/recognyze/bot-wall/" + defaultBotDefFileName,
-	"/plugins-local/src/github.com/recognyze-ai/bot-wall/" + defaultBotDefFileName,
-	"/plugins-local/src/github.com/recognyze/bot-wall/" + defaultBotDefFileName,
-	"plugins-local/src/recognyze/botwall/" + defaultBotDefFileName,
-	"r7e_botwall/plugins-local/src/recognyze/botwall/" + defaultBotDefFileName,
-	"/plugins-local/src/recognyze/botwall/" + defaultBotDefFileName,
+	"github.com/recognyze-ai/traefik-bot-wall/" + defaultBotDefFileName,
+	"/plugins-local/src/github.com/recognyze-ai/traefik-bot-wall/" + defaultBotDefFileName,
 }
+	
 
 func readDefaultBotDefFromFile() (botDef, error) {
 	var (

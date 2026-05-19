@@ -6,7 +6,7 @@ This document explains the plugin architecture, what each file is responsible fo
 
 ![botwall: middleware request flow and background caches](docs/architecture.png)
 
-`botwall` (`module github.com/recognyze-ai/bot-wall`) is a Traefik middleware plugin designed for catalog publication that enforces bot access policy for protected resources.
+`traefik_bot_wall` (`module github.com/recognyze-ai/traefik-bot-wall`) is a Traefik middleware plugin designed for catalog publication that enforces bot access policy for protected resources.
 
 Core design goals:
 
@@ -134,7 +134,7 @@ Core design goals:
     - `--providers.file.watch=true`
   - Mounts:
     - `./traefik/dynamic` into Traefik as `/etc/traefik/dynamic` (read-only)
-    - `./` into Traefik as `/plugins-local/src/github.com/recognyze-ai/bot-wall` for local plugin runtime loading
+    - `./` into Traefik as `/plugins-local/src/github.com/recognyze-ai/traefik-bot-wall` for local plugin runtime loading
     - `./fixtures` for optional local integration fixtures
     - `./logs` to `/var/log/traefik` (decision log path in dynamic YAML)
   - Exposes Traefik web on host port `80` and the API/dashboard on host port `5051` (Traefik’s internal `8080`).

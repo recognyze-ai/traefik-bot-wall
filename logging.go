@@ -1,4 +1,4 @@
-package botwall
+package traefik_bot_wall
 
 import (
 	"bytes"
@@ -135,7 +135,7 @@ type EventLogger struct {
 
 const maxUserAgentBytes = 512
 const defaultPluginVersion = "1.0.0"
-const pluginModulePath = "github.com/recognyze-ai/bot-wall"
+const pluginModulePath = "github.com/recognyze-ai/traefik-bot-wall"
 
 func sanitizeUserAgent(userAgent string) string {
 	if strings.TrimSpace(userAgent) == "" {
