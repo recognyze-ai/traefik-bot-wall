@@ -6,6 +6,7 @@ import (
 	"fmt"
 	"io"
 	"log"
+	"mime"
 	"net/http"
 	"os"
 	"path/filepath"
@@ -313,9 +314,12 @@ func (l *EventLogger) shipAndTruncateOnce() error {
 	defer func() {
 		_ = resp.Body.Close()
 	}()
+	respBody, _ := io.ReadAll(io.LimitReader(resp.Body, 1024))
 	if resp.StatusCode < 200 || resp.StatusCode >= 300 {
-		respBody, _ := io.ReadAll(io.LimitReader(resp.Body, 1024))
 		return fmt.Errorf("publisher logs endpoint returned %d: %s", resp.StatusCode, strings.TrimSpace(string(respBody)))
+	}
+	if jsonAPIError(resp.Header.Get("Content-Type"), respBody) {
+		return fmt.Errorf("publisher logs endpoint returned error=true: %s", strings.TrimSpace(string(respBody)))
 	}
 
 	// Keep the file but clear all contents after a successful ship.
@@ -473,6 +477,27 @@ func normalizeBuildVersion(version string) (string, bool) {
 		return "", false
 	}
 	return strings.TrimPrefix(v, "v"), true
+}
+
+func isJSONContentType(contentType string) bool {
+	mediaType, _, err := mime.ParseMediaType(contentType)
+	if err != nil {
+		return strings.Contains(strings.ToLower(contentType), "json")
+	}
+	return mediaType == "application/json" || strings.HasSuffix(mediaType, "+json")
+}
+
+func jsonAPIError(contentType string, body []byte) bool {
+	if !isJSONContentType(contentType) {
+		return false
+	}
+	var envelope struct {
+		Error bool `json:"error"`
+	}
+	if err := json.Unmarshal(body, &envelope); err != nil {
+		return false
+	}
+	return envelope.Error
 }
 
 func isMetadataLine(line []byte) bool {
