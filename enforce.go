@@ -1,4 +1,4 @@
-package botwall
+package traefik_bot_wall
 
 import "net/http"
 

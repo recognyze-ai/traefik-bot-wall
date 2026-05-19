@@ -1,3 +1,3 @@
-module github.com/recognyze-ai/bot-wall
+module github.com/recognyze-ai/traefik-bot-wall
 
 go 1.22

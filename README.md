@@ -1,6 +1,6 @@
 # Recognyze Bot Wall Traefik Plugin
 
-[![CI](https://github.com/recognyze-ai/bot-wall/actions/workflows/ci.yml/badge.svg)](https://github.com/recognyze-ai/bot-wall/actions/workflows/ci.yml)
+[![CI](https://github.com/recognyze-ai/traefik-bot-wall/actions/workflows/ci.yml/badge.svg)](https://github.com/recognyze-ai/traefik-bot-wall/actions/workflows/ci.yml)
 
 Yaegi middleware plugin for Traefik that enforces Recognyze botwall policy.
 
@@ -40,7 +40,7 @@ Use local plugin mode during development:
 experimental:
   localPlugins:
     botwall:
-      moduleName: github.com/recognyze-ai/bot-wall
+      moduleName: github.com/recognyze-ai/traefik-bot-wall
 ```
 
 For catalog/remote mode, use `experimental.plugins` with a version tag:
@@ -49,7 +49,7 @@ For catalog/remote mode, use `experimental.plugins` with a version tag:
 experimental:
   plugins:
     botwall:
-      moduleName: github.com/recognyze-ai/bot-wall
+      moduleName: github.com/recognyze-ai/traefik-bot-wall
       version: v0.1.0
 ```
 
@@ -132,7 +132,7 @@ If you want to simulate catalog conditions, tag a release and switch to `experim
 
 ## Quality gates
 
-- CI workflow: [`.github/workflows/ci.yml`](https://github.com/recognyze-ai/bot-wall/actions/workflows/ci.yml)
+- CI workflow: [`.github/workflows/ci.yml`](https://github.com/recognyze-ai/traefik-bot-wall/actions/workflows/ci.yml)
 - Checks on each PR and push to `main`:
   - `go test ./...`
   - `golangci-lint` (configured by `.golangci.yml`)
@@ -140,10 +140,10 @@ If you want to simulate catalog conditions, tag a release and switch to `experim
 ## Release checklist
 
 - Ensure repository topic includes `traefik-plugin`.
-- Confirm `.traefik.yml` is valid and `import` matches `go.mod` module path (`github.com/recognyze-ai/bot-wall`).
+- Confirm `.traefik.yml` is valid and `import` matches `go.mod` module path (`github.com/recognyze-ai/traefik-bot-wall`).
 - Verify `testData` in `.traefik.yml` points to files committed in the repository.
 - Run quality gates locally:
   - `go test ./...`
   - `golangci-lint run`
 - Create and push a semantic version tag (for example `v0.1.0`).
-- After tagging, check [GitHub Actions](https://github.com/recognyze-ai/bot-wall/actions/workflows/ci.yml) and the Traefik plugin catalog status.
+- After tagging, check [GitHub Actions](https://github.com/recognyze-ai/traefik-bot-wall/actions/workflows/ci.yml) and the Traefik plugin catalog status.
