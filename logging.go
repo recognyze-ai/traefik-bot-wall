@@ -37,6 +37,60 @@ type AccessLogEvent struct {
 	OriginalLine  string `json:"original_line"`
 }
 
+func accessLogPlaceholder(s string) string {
+	if strings.TrimSpace(s) == "" {
+		return "-"
+	}
+	return strings.TrimSpace(s)
+}
+
+func pathWithoutQuery(requestTarget string) string {
+	if i := strings.IndexByte(requestTarget, '?'); i >= 0 {
+		return requestTarget[:i]
+	}
+	return requestTarget
+}
+
+func resolveAccessLogRequestParts(req *http.Request) (method, requestTarget, pathStr, proto string) {
+	method = req.Method
+	if method == "" {
+		method = "GET"
+	}
+	requestTarget = req.RequestURI
+	if requestTarget == "" && req.URL != nil {
+		requestTarget = req.URL.RequestURI()
+	}
+	if requestTarget == "" {
+		requestTarget = "/"
+	}
+	if req.URL != nil {
+		if p := req.URL.Path; p != "" {
+			pathStr = p
+		} else {
+			pathStr = pathWithoutQuery(requestTarget)
+		}
+	} else {
+		pathStr = pathWithoutQuery(requestTarget)
+	}
+	if pathStr == "" {
+		pathStr = "/"
+	}
+	proto = req.Proto
+	if strings.TrimSpace(proto) == "" {
+		proto = "HTTP/1.1"
+	}
+	return method, requestTarget, pathStr, proto
+}
+
+func formatCombinedOriginalLine(remoteHost, clientIP string, now time.Time, reqLine string, status, bytesSent int, referer, userAgent string) string {
+	origRef := accessLogPlaceholder(referer)
+	origUA := accessLogPlaceholder(userAgent)
+	return fmt.Sprintf(
+		`%s %s - - [%s] %q %d %d %q %q`,
+		remoteHost, clientIP, now.Format("02/Jan/2006:15:04:05 -0700"), reqLine, status, bytesSent, origRef, origUA,
+	)
+}
+
 // BuildAccessLogEvent assembles a single line from the incoming request, response status, and body size.
 // remoteLogname is the client address (e.g. resolved IP). remoteUser is "- -", matching the ident/auth placeholders in a combined log line.
 func BuildAccessLogEvent(req *http.Request, clientIP string, status, bytesSent int) AccessLogEvent {
@@ -44,63 +98,12 @@ func BuildAccessLogEvent(req *http.Request, clientIP string, status, bytesSent i
 		req = &http.Request{}
 	}
 	now := time.Now().UTC()
-	remoteHost := strings.TrimSpace(req.Host)
-	if remoteHost == "" {
-		remoteHost = "-"
-	}
-	rl := strings.TrimSpace(clientIP)
-	if rl == "" {
-		rl = "-"
-	}
-	method := req.Method
-	if method == "" {
-		method = "GET"
-	}
-	requestTarget := req.RequestURI
-	if requestTarget == "" && req.URL != nil {
-		requestTarget = req.URL.RequestURI()
-	}
-	if requestTarget == "" {
-		requestTarget = "/"
-	}
-	var pathStr string
-	if req.URL != nil {
-		if p := req.URL.Path; p != "" {
-			pathStr = p
-		} else {
-			if i := strings.IndexByte(requestTarget, '?'); i >= 0 {
-				pathStr = requestTarget[:i]
-			} else {
-				pathStr = requestTarget
-			}
-		}
-	} else if i := strings.IndexByte(requestTarget, '?'); i >= 0 {
-		pathStr = requestTarget[:i]
-	} else {
-		pathStr = requestTarget
-	}
-	if pathStr == "" {
-		pathStr = "/"
-	}
-	proto := req.Proto
-	if strings.TrimSpace(proto) == "" {
-		proto = "HTTP/1.1"
-	}
+	remoteHost := accessLogPlaceholder(req.Host)
+	rl := accessLogPlaceholder(clientIP)
+	method, requestTarget, pathStr, proto := resolveAccessLogRequestParts(req)
 	reqLine := method + " " + requestTarget + " " + proto
 	ua := sanitizeUserAgent(req.UserAgent())
-	referer := strings.TrimSpace(req.Referer())
-	if referer == "" {
-		referer = "-"
-	}
-
-	origRef := referer
-	origUA := ua
-	if origRef == "" {
-		origRef = "-"
-	}
-	if origUA == "" {
-		origUA = "-"
-	}
+	referer := accessLogPlaceholder(req.Referer())
 
 	return AccessLogEvent{
 		RemoteHost:    remoteHost,
@@ -115,10 +118,7 @@ func BuildAccessLogEvent(req *http.Request, clientIP string, status, bytesSent i
 		BytesSent:     bytesSent,
 		Referer:       referer,
 		UserAgent:     ua,
-		OriginalLine: fmt.Sprintf(
-			`%s %s - - [%s] %q %d %d %q %q`,
-			remoteHost, rl, now.Format("02/Jan/2006:15:04:05 -0700"), reqLine, status, bytesSent, origRef, origUA,
-		),
+		OriginalLine:  formatCombinedOriginalLine(remoteHost, rl, now, reqLine, status, bytesSent, referer, ua),
 	}
 }
 

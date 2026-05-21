@@ -22,6 +22,24 @@ func TestSoftmaxAntiSpoofUAWithoutIP(t *testing.T) {
 	}
 }
 
+func TestUserAgentMatchesIPVerificationBotIdentity(t *testing.T) {
+	if userAgentMatchesIPVerificationBotIdentity("openai", "openai", "OpenAI") != true {
+		t.Fatal("expected bot slug UA to match")
+	}
+	if userAgentMatchesIPVerificationBotIdentity("OpenAI", "openai", "OpenAI") != true {
+		t.Fatal("expected rule category slug UA to match")
+	}
+	if userAgentMatchesIPVerificationBotIdentity("curl", "openai", "OpenAI") != false {
+		t.Fatal("expected generic curl UA to be rejected")
+	}
+	if userAgentMatchesIPVerificationBotIdentity("bad;ua", "openai", "OpenAI") != false {
+		t.Fatal("expected forbidden char UA to be rejected")
+	}
+	if userAgentMatchesIPVerificationBotIdentity("", "openai", "OpenAI") != false {
+		t.Fatal("expected empty UA to be rejected")
+	}
+}
+
 func TestSoftmaxMatchWhenIPMatches(t *testing.T) {
 	c := &Classifier{
 		invertedMappings: map[string]string{
