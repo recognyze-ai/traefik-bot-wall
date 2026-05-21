@@ -99,12 +99,15 @@ func CreateConfig() *Config {
 	}
 }
 
-func parseAndNormalizeConfig(input *Config) (*parsedConfig, error) {
+func mergeConfigInput(input *Config) *Config {
 	cfg := CreateConfig()
 	if input != nil {
 		*cfg = *input
 	}
+	return cfg
+}
 
+func applyConfigDefaults(cfg *Config) {
 	if strings.TrimSpace(cfg.CacheTTL) == "" {
 		cfg.CacheTTL = defaultCacheTTL
 	}
@@ -138,79 +141,118 @@ func parseAndNormalizeConfig(input *Config) (*parsedConfig, error) {
 	if cfg.SoftmaxBeta <= 0 {
 		cfg.SoftmaxBeta = 4
 	}
+}
 
+func validateBotRulesFilePaths(cfg *Config) error {
+	bot := strings.TrimSpace(cfg.BotRulesFile)
+	if bot == "" {
+		return nil
+	}
+	cache := strings.TrimSpace(cfg.RulesCacheFile)
+	if filepath.Clean(bot) == filepath.Clean(cache) {
+		return fmt.Errorf(
+			"botRulesFile and rulesCacheFile must differ (same path after filepath.Clean: %s)",
+			filepath.Clean(bot),
+		)
+	}
+	return nil
+}
+
+type configDurations struct {
+	cacheTTL              time.Duration
+	refreshBeforeExpiry   time.Duration
+	refreshJitter         time.Duration
+	rulesRefresh          time.Duration
+	publisherLogsInterval time.Duration
+}
+
+func parseConfigDurations(cfg *Config) (configDurations, error) {
+	var d configDurations
+	var err error
+	if d.cacheTTL, err = time.ParseDuration(cfg.CacheTTL); err != nil {
+		return d, fmt.Errorf("invalid cacheTTL: %w", err)
+	}
+	if d.refreshBeforeExpiry, err = time.ParseDuration(cfg.RefreshBeforeExpiry); err != nil {
+		return d, fmt.Errorf("invalid refreshBeforeExpiry: %w", err)
+	}
+	if d.refreshJitter, err = time.ParseDuration(cfg.RefreshJitter); err != nil {
+		return d, fmt.Errorf("invalid refreshJitter: %w", err)
+	}
+	if d.rulesRefresh, err = time.ParseDuration(cfg.RulesRefresh); err != nil {
+		return d, fmt.Errorf("invalid rulesRefreshInterval: %w", err)
+	}
+	if d.publisherLogsInterval, err = time.ParseDuration(cfg.PublisherLogsInterval); err != nil {
+		return d, fmt.Errorf("invalid publisherLogsInterval: %w", err)
+	}
+	return d, nil
+}
+
+func validateConfigTiming(d configDurations) error {
+	if d.publisherLogsInterval <= 0 {
+		return fmt.Errorf("publisherLogsInterval must be greater than 0")
+	}
+	if d.refreshBeforeExpiry >= d.cacheTTL {
+		return fmt.Errorf("refreshBeforeExpiry must be lower than cacheTTL")
+	}
+	return nil
+}
+
+func validateAbsoluteHTTPSURL(rawURL, fieldName string, allowInsecure bool) error {
+	rawURL = strings.TrimSpace(rawURL)
+	if rawURL == "" {
+		return nil
+	}
+	u, err := url.Parse(rawURL)
+	if err != nil || !u.IsAbs() || u.Host == "" {
+		return fmt.Errorf("%s must be an absolute URL", fieldName)
+	}
+	switch strings.ToLower(u.Scheme) {
+	case "https":
+		return nil
+	case "http":
+		if !allowInsecure {
+			return fmt.Errorf("%s must use https unless allowInsecureBotRulesURL=true (dev only)", fieldName)
+		}
+		return nil
+	default:
+		return fmt.Errorf("%s must use http or https", fieldName)
+	}
+}
+
+func validatePublisherLogsConfig(cfg *Config) error {
+	if err := validateAbsoluteHTTPSURL(cfg.PublisherLogsURL, "publisherLogsURL", cfg.AllowInsecureBotRulesURL); err != nil {
+		return err
+	}
+	if strings.TrimSpace(cfg.PublisherLogsURL) == "" {
+		return nil
+	}
+	if strings.TrimSpace(cfg.PublisherAPIKey) == "" {
+		return fmt.Errorf("publisherAPIKey is required when publisherLogsURL is set")
+	}
+	return nil
+}
+
+func parseAndNormalizeConfig(input *Config) (*parsedConfig, error) {
+	cfg := mergeConfigInput(input)
+	applyConfigDefaults(cfg)
 	normalizeBotRulesURL(cfg)
 
-	if bot := strings.TrimSpace(cfg.BotRulesFile); bot != "" {
-		cache := strings.TrimSpace(cfg.RulesCacheFile)
-		if filepath.Clean(bot) == filepath.Clean(cache) {
-			return nil, fmt.Errorf(
-				"botRulesFile and rulesCacheFile must differ (same path after filepath.Clean: %s)",
-				filepath.Clean(bot),
-			)
-		}
+	if err := validateBotRulesFilePaths(cfg); err != nil {
+		return nil, err
 	}
 
-	cacheTTL, err := time.ParseDuration(cfg.CacheTTL)
+	durations, err := parseConfigDurations(cfg)
 	if err != nil {
-		return nil, fmt.Errorf("invalid cacheTTL: %w", err)
+		return nil, err
 	}
-	refreshBefore, err := time.ParseDuration(cfg.RefreshBeforeExpiry)
-	if err != nil {
-		return nil, fmt.Errorf("invalid refreshBeforeExpiry: %w", err)
+	if err := validateConfigTiming(durations); err != nil {
+		return nil, err
 	}
-	refreshJitter, err := time.ParseDuration(cfg.RefreshJitter)
-	if err != nil {
-		return nil, fmt.Errorf("invalid refreshJitter: %w", err)
+	if err := validateAbsoluteHTTPSURL(cfg.BotRulesURL, "botRulesURL", cfg.AllowInsecureBotRulesURL); err != nil {
+		return nil, err
 	}
-	rulesRefresh, err := time.ParseDuration(cfg.RulesRefresh)
-	if err != nil {
-		return nil, fmt.Errorf("invalid rulesRefreshInterval: %w", err)
-	}
-	publisherLogsInterval, err := time.ParseDuration(cfg.PublisherLogsInterval)
-	if err != nil {
-		return nil, fmt.Errorf("invalid publisherLogsInterval: %w", err)
-	}
-	if publisherLogsInterval <= 0 {
-		return nil, fmt.Errorf("publisherLogsInterval must be greater than 0")
-	}
-	if refreshBefore >= cacheTTL {
-		return nil, fmt.Errorf("refreshBeforeExpiry must be lower than cacheTTL")
-	}
-	if raw := strings.TrimSpace(cfg.BotRulesURL); raw != "" {
-		u, err := url.Parse(raw)
-		if err != nil || !u.IsAbs() || u.Host == "" {
-			return nil, fmt.Errorf("botRulesURL must be an absolute URL")
-		}
-		switch strings.ToLower(u.Scheme) {
-		case "https":
-			// secure default
-		case "http":
-			if !cfg.AllowInsecureBotRulesURL {
-				return nil, fmt.Errorf("botRulesURL must use https unless allowInsecureBotRulesURL=true (dev only)")
-			}
-		default:
-			return nil, fmt.Errorf("botRulesURL must use http or https")
-		}
-	}
-	if raw := strings.TrimSpace(cfg.PublisherLogsURL); raw != "" {
-		u, err := url.Parse(raw)
-		if err != nil || !u.IsAbs() || u.Host == "" {
-			return nil, fmt.Errorf("publisherLogsURL must be an absolute URL")
-		}
-		switch strings.ToLower(u.Scheme) {
-		case "https":
-			// secure default
-		case "http":
-			if !cfg.AllowInsecureBotRulesURL {
-				return nil, fmt.Errorf("publisherLogsURL must use https unless allowInsecureBotRulesURL=true (dev only)")
-			}
-		default:
-			return nil, fmt.Errorf("publisherLogsURL must use http or https")
-		}
-		if strings.TrimSpace(cfg.PublisherAPIKey) == "" {
-			return nil, fmt.Errorf("publisherAPIKey is required when publisherLogsURL is set")
-		}
+	if err := validatePublisherLogsConfig(cfg); err != nil {
+		return nil, err
 	}
 
 	cfg.Policy.Normalize()
@@ -223,11 +265,11 @@ func parseAndNormalizeConfig(input *Config) (*parsedConfig, error) {
 	return &parsedConfig{
 		Config:                *cfg,
 		trustedProxyNets:      nets,
-		cacheTTL:              cacheTTL,
-		refreshBeforeExpiry:   refreshBefore,
-		refreshJitter:         refreshJitter,
-		rulesRefresh:          rulesRefresh,
-		publisherLogsInterval: publisherLogsInterval,
+		cacheTTL:              durations.cacheTTL,
+		refreshBeforeExpiry:   durations.refreshBeforeExpiry,
+		refreshJitter:         durations.refreshJitter,
+		rulesRefresh:          durations.rulesRefresh,
+		publisherLogsInterval: durations.publisherLogsInterval,
 	}, nil
 }
 

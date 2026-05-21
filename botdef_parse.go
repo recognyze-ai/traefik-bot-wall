@@ -98,42 +98,47 @@ func ruleCategoryBySlug(uaPatterns []uaPatternEntry) map[string]string {
 	return out
 }
 
+func trimNonEmptyStrings(ss []string) []string {
+	out := make([]string, 0, len(ss))
+	for _, s := range ss {
+		s = strings.TrimSpace(s)
+		if s != "" {
+			out = append(out, s)
+		}
+	}
+	return out
+}
+
 func normalizeIPVerificationBots(p botDefParsed) map[string]ipVerificationNormalized {
 	out := make(map[string]ipVerificationNormalized)
 	bySlug := ruleCategoryBySlug(p.UAPatterns)
+	normalizePortalIPBots(p, bySlug, out)
+	normalizeLegacyIPBots(p, bySlug, out)
+	return out
+}
 
-	if p.IPVerification != nil {
-		for botKey, def := range p.IPVerification.Bots {
-			botSlug := slugify(botKey)
-			if botSlug == "" {
-				continue
-			}
-			ruleCat := bySlug[botSlug]
-			if ruleCat == "" {
-				ruleCat = titleFirstSegment(botKey)
-			}
-			uaClean := make([]string, 0, len(def.UserAgentPatterns))
-			for _, s := range def.UserAgentPatterns {
-				s = strings.TrimSpace(s)
-				if s != "" {
-					uaClean = append(uaClean, s)
-				}
-			}
-			ipClean := make([]string, 0, len(def.IPRanges))
-			for _, s := range def.IPRanges {
-				s = strings.TrimSpace(s)
-				if s != "" {
-					ipClean = append(ipClean, s)
-				}
-			}
-			out[botSlug] = ipVerificationNormalized{
-				RuleCategory:      ruleCat,
-				UserAgentPatterns: uaClean,
-				IPRanges:          ipClean,
-			}
+func normalizePortalIPBots(p botDefParsed, bySlug map[string]string, out map[string]ipVerificationNormalized) {
+	if p.IPVerification == nil {
+		return
+	}
+	for botKey, def := range p.IPVerification.Bots {
+		botSlug := slugify(botKey)
+		if botSlug == "" {
+			continue
+		}
+		ruleCat := bySlug[botSlug]
+		if ruleCat == "" {
+			ruleCat = titleFirstSegment(botKey)
+		}
+		out[botSlug] = ipVerificationNormalized{
+			RuleCategory:      ruleCat,
+			UserAgentPatterns: trimNonEmptyStrings(def.UserAgentPatterns),
+			IPRanges:          trimNonEmptyStrings(def.IPRanges),
 		}
 	}
+}
 
+func normalizeLegacyIPBots(p botDefParsed, bySlug map[string]string, out map[string]ipVerificationNormalized) {
 	for slug, leg := range p.LegacyIPv {
 		slug = slugify(slug)
 		if slug == "" {
@@ -146,28 +151,12 @@ func normalizeIPVerificationBots(p botDefParsed) map[string]ipVerificationNormal
 		if ruleCat == "" {
 			ruleCat = slug
 		}
-		uaClean := make([]string, 0, len(leg.UAPatterns))
-		for _, s := range leg.UAPatterns {
-			s = strings.TrimSpace(s)
-			if s != "" {
-				uaClean = append(uaClean, s)
-			}
-		}
-		ipClean := make([]string, 0, len(leg.CIDRs))
-		for _, s := range leg.CIDRs {
-			s = strings.TrimSpace(s)
-			if s != "" {
-				ipClean = append(ipClean, s)
-			}
-		}
 		out[slug] = ipVerificationNormalized{
 			RuleCategory:      ruleCat,
-			UserAgentPatterns: uaClean,
-			IPRanges:          ipClean,
+			UserAgentPatterns: trimNonEmptyStrings(leg.UAPatterns),
+			IPRanges:          trimNonEmptyStrings(leg.CIDRs),
 		}
 	}
-
-	return out
 }
 
 func titleFirstSegment(key string) string {

@@ -12,7 +12,6 @@ var defaultBotDefPaths = []string{
 	"github.com/recognyze-ai/traefik-bot-wall/" + defaultBotDefFileName,
 	"/plugins-local/src/github.com/recognyze-ai/traefik-bot-wall/" + defaultBotDefFileName,
 }
-	
 
 func readDefaultBotDefFromFile() (botDef, error) {
 	var (

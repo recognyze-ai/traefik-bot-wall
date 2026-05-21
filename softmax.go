@@ -115,6 +115,16 @@ type softmaxOutcome struct {
 	ipMatched    bool
 }
 
+type softmaxCand struct {
+	botSlug      string
+	ruleCategory string
+	uaMatched    bool
+	ipMatched    bool
+	z            float64
+	exp          float64
+	probability  float64
+}
+
 func softmaxToClassification(sm softmaxOutcome, c *Classifier) Classification {
 	c.mu.RLock()
 	inverted := c.invertedMappings
@@ -129,21 +139,10 @@ func softmaxToClassification(sm softmaxOutcome, c *Classifier) Classification {
 	}
 }
 
-func (c *Classifier) classifySoftmax(userAgent, visitorIP string, ipBots map[string]ipVerificationNormalized, alpha, beta float64) softmaxOutcome {
-	out := softmaxOutcome{reason: softmaxReasonNoEvidence}
-
-	type cand struct {
-		botSlug      string
-		ruleCategory string
-		uaMatched    bool
-		ipMatched    bool
-		z            float64
-		exp          float64
-		probability  float64
-	}
-
-	cs := map[string]*cand{}
-	var maxZPtr *float64
+func buildSoftmaxCandidates(userAgent, visitorIP string, ipBots map[string]ipVerificationNormalized, alpha, beta float64) (map[string]*softmaxCand, float64, bool) {
+	cs := make(map[string]*softmaxCand, len(ipBots))
+	var maxZ float64
+	hasMax := false
 	for botSlug, def := range ipBots {
 		uaMatched := softmaxUAMatches(userAgent, botSlug, def)
 		ipMatched := visitorIP != "" && ipMatchesRanges(visitorIP, def.IPRanges)
@@ -154,42 +153,32 @@ func (c *Classifier) classifySoftmax(userAgent, visitorIP string, ipBots map[str
 		if ipMatched {
 			z += beta
 		}
-		cs[botSlug] = &cand{
+		cs[botSlug] = &softmaxCand{
 			botSlug:      botSlug,
 			ruleCategory: def.RuleCategory,
 			uaMatched:    uaMatched,
 			ipMatched:    ipMatched,
 			z:            z,
 		}
-		if maxZPtr == nil || z > *maxZPtr {
-			zCopy := z
-			maxZPtr = &zCopy
+		if !hasMax || z > maxZ {
+			maxZ = z
+			hasMax = true
 		}
 	}
+	return cs, maxZ, hasMax
+}
 
-	if len(cs) == 0 {
-		out.reason = softmaxReasonNoCandidates
-		return out
-	}
-	if maxZPtr == nil || *maxZPtr <= 0 {
-		out.reason = softmaxReasonNoEvidence
-		return out
-	}
-
-	mz := *maxZPtr
-	sumExp := 0.0
+func computeSoftmaxProbabilities(cs map[string]*softmaxCand, maxZ float64) (selectedSlug string, sumExp float64, ok bool) {
+	sumExp = 0.0
 	for slug, e := range cs {
-		ev := math.Exp(e.z - mz)
+		ev := math.Exp(e.z - maxZ)
 		cs[slug].exp = ev
 		sumExp += ev
 	}
-
 	if sumExp <= 0 {
-		out.reason = softmaxReasonSoftmaxError
-		return out
+		return "", 0, false
 	}
 
-	var selectedSlug string
 	var selectedProb float64 = -1
 	for slug, e := range cs {
 		p := e.exp / sumExp
@@ -199,30 +188,51 @@ func (c *Classifier) classifySoftmax(userAgent, visitorIP string, ipBots map[str
 			selectedSlug = slug
 		}
 	}
+	return selectedSlug, sumExp, selectedSlug != "" && cs[selectedSlug] != nil
+}
 
-	if selectedSlug == "" || cs[selectedSlug] == nil {
-		out.reason = softmaxReasonSelectionFailed
-		return out
+func softmaxOutcomeFromSelection(sel *softmaxCand, winnerRanges []string) softmaxOutcome {
+	out := softmaxOutcome{
+		botSlug:      sel.botSlug,
+		ruleCategory: sel.ruleCategory,
+		uaMatched:    sel.uaMatched,
+		ipMatched:    sel.ipMatched,
+		probability:  sel.probability,
 	}
-
-	sel := cs[selectedSlug]
-	out.botSlug = sel.botSlug
-	out.ruleCategory = sel.ruleCategory
-	out.uaMatched = sel.uaMatched
-	out.ipMatched = sel.ipMatched
-	out.probability = sel.probability
-
-	winnerRanges := ipBots[selectedSlug].IPRanges
-
 	if len(winnerRanges) > 0 && !sel.ipMatched {
 		out.matched = false
 		out.reason = softmaxReasonWinnerRequiresIP
 		return out
 	}
-
 	out.matched = true
 	out.reason = softmaxReasonMatched
 	return out
+}
+
+func (c *Classifier) classifySoftmax(userAgent, visitorIP string, ipBots map[string]ipVerificationNormalized, alpha, beta float64) softmaxOutcome {
+	out := softmaxOutcome{reason: softmaxReasonNoEvidence}
+
+	cs, maxZ, hasMax := buildSoftmaxCandidates(userAgent, visitorIP, ipBots, alpha, beta)
+	if len(cs) == 0 {
+		out.reason = softmaxReasonNoCandidates
+		return out
+	}
+	if !hasMax || maxZ <= 0 {
+		out.reason = softmaxReasonNoEvidence
+		return out
+	}
+
+	selectedSlug, sumExp, ok := computeSoftmaxProbabilities(cs, maxZ)
+	if !ok {
+		if sumExp <= 0 {
+			out.reason = softmaxReasonSoftmaxError
+			return out
+		}
+		out.reason = softmaxReasonSelectionFailed
+		return out
+	}
+
+	return softmaxOutcomeFromSelection(cs[selectedSlug], ipBots[selectedSlug].IPRanges)
 }
 
 func softmaxUAMatches(userAgent string, botSlug string, def ipVerificationNormalized) bool {
@@ -244,39 +254,41 @@ func softmaxUAMatches(userAgent string, botSlug string, def ipVerificationNormal
 	return userAgentMatchesIPVerificationBotIdentity(userAgent, botSlug, def.RuleCategory)
 }
 
+var genericUAIdentitySlugs = map[string]struct{}{
+	"human": {}, "unknown": {}, "other": {}, "mozilla": {},
+	"chrome": {}, "safari": {}, "firefox": {}, "opera": {},
+	"edge": {}, "curl": {}, "wget": {},
+}
+
+func isPlausibleIPVerificationIdentityUA(ua string) bool {
+	ul := len(ua)
+	if ul < 3 || ul > 96 {
+		return false
+	}
+	return !strings.ContainsAny(ua, " ;(),/<>")
+}
+
+func isGenericUAIdentitySlug(uaSlug string) bool {
+	_, ok := genericUAIdentitySlugs[uaSlug]
+	return ok
+}
+
 func userAgentMatchesIPVerificationBotIdentity(userAgent string, botSlug string, ruleCategory string) bool {
 	if strings.TrimSpace(userAgent) == "" || botSlug == "" {
 		return false
 	}
 	ua := strings.TrimSpace(userAgent)
-	ul := len(ua)
-	if ul < 3 || ul > 96 {
+	if !isPlausibleIPVerificationIdentityUA(ua) {
 		return false
-	}
-	for _, r := range ua {
-		if r == ' ' || r == ';' || r == '(' || r == ')' || r == ',' || r == '/' || r == '<' || r == '>' {
-			return false
-		}
 	}
 	uaSlug := slugify(ua)
-	if len(uaSlug) < 3 {
-		return false
-	}
-	generic := map[string]struct{}{
-		"human": {}, "unknown": {}, "other": {}, "mozilla": {},
-		"chrome": {}, "safari": {}, "firefox": {}, "opera": {},
-		"edge": {}, "curl": {}, "wget": {},
-	}
-	if _, ok := generic[uaSlug]; ok {
+	if len(uaSlug) < 3 || isGenericUAIdentitySlug(uaSlug) {
 		return false
 	}
 	if uaSlug == botSlug {
 		return true
 	}
-	if ruleCategory != "" && slugify(ruleCategory) == uaSlug {
-		return true
-	}
-	return false
+	return ruleCategory != "" && slugify(ruleCategory) == uaSlug
 }
 
 func ipMatchesRanges(ipStr string, ranges []string) bool {
