@@ -1,3 +1,5 @@
+![Recognyze.ai](assets/r7e_banner_traefik.png)
+
 # Recognyze Bot Wall Traefik Plugin
 
 [![Go Report Card](https://goreportcard.com/badge/github.com/recognyze-ai/traefik-bot-wall)](https://goreportcard.com/report/github.com/recognyze-ai/traefik-bot-wall)
