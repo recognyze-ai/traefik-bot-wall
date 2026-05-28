@@ -108,10 +108,6 @@ type publisherKeyStateFile struct {
 	LastRotError string `json:"last_rotation_error,omitempty"`
 }
 
-func (f *publisherKeyStateFile) hasSecret() bool {
-	return strings.TrimSpace(f.Secret) != "" || strings.TrimSpace(f.SecretEnc) != ""
-}
-
 func decodePublisherKeyStateFile(raw []byte, encrypt bool, encKey []byte) (publisherKeyState, error) {
 	var file publisherKeyStateFile
 	if err := json.Unmarshal(raw, &file); err != nil {
