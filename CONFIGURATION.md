@@ -59,8 +59,15 @@ All keys are JSON/YAML fields on the plugin config object.
 | `denyInfoURL` | (empty; runtime falls back to `https://www.recognyze.ai/aggregators`) | No | URL embedded in the 403 deny body. Set this to your own controlled documentation page to avoid dependency on third-party domain ownership changes. |
 | `decisionLogFile` | `/var/log/traefik/botwall_events.jsonl` | No | JSONL file path for decision logging (`blocked_visit`, `signed_visit`). The logger may prepend a one-line export metadata object; see “Decision log and event shipping” below. |
 | `publisherLogsURL` | empty | No | Optional absolute URL to the Recognyze publisher logs ingest endpoint (production: `https://portal.recognyze.ai/api/v1/publisher/logs/`, dev: `https://portal.dev.recognyze.ai/api/v1/publisher/logs/`). When set, the plugin POSTs the decision JSONL file body as `application/jsonl` (one `AccessLogEvent` JSON object per line) authenticated with the `X-API-KEY: <publisherAPIKey>` header, and, after a successful response, truncates the log file. Must be `https://` by default; `http://` is allowed only when `allowInsecureBotRulesURL: true` (dev). |
-| `publisherAPIKey` | empty | Yes when `publisherLogsURL` is set | Plaintext API key sent in the `X-API-KEY` header to `publisherLogsURL`. Startup fails if `publisherLogsURL` is set but this is empty. The key sits in the YAML file in plaintext — protect the file with filesystem permissions or Docker/Kubernetes secrets. |
+| `publisherAPIKey` | empty | Yes when `publisherLogsURL` is set (unless state file already has a secret) | **Bootstrap** API key for first connect. Traefik static config is read-only to the plugin — after proactive rotation the live secret is in `publisherAPIKeyStateFile`, not YAML. Protect this file with filesystem permissions or secrets. |
 | `publisherLogsInterval` | `5m` | No | How often the background ship loop runs when `publisherLogsURL` is set, and the minimum interval between on-write ship attempts. Must be a valid Go duration and greater than `0`. |
+| `publisherAPIKeyStateFile` | `/tmp/botwall_publisher_api_key.json` | No | Encrypted or plaintext JSON storing the **live** API secret and metadata (`key_id`, `expiration_date`, …) after rotation. Use a **persistent volume** in production. |
+| `publisherAPIBaseURL` | (derived from `publisherLogsURL`) | No | Override Recognyze account API base (e.g. `https://portal.dev.recognyze.ai/api/v1`) when derivation from the logs URL is insufficient. |
+| `publisherAPIKeyRotationEnabled` | **`true`** when `publisherLogsURL` is set | No | Master switch for proactive rotation + metadata sync. Set `false` only when admins rotate keys manually in the portal and update bootstrap YAML/state file themselves. |
+| `publisherAPIKeyRotationBufferDays` | `14` | No | Rotate when within this many days of `expiration_date` (WordPress plugin parity). |
+| `publisherAPIKeyMetadataSyncInterval` | `24h` | No | Interval for `GET .../api-keys/current/` metadata refresh and overdue-rotation fallback. |
+| `publisherAPIKeyEncryptAtRest` | `false` | No | When `true`, store `secret` as AES-256-GCM in the state file (`secret_enc`). Requires `BOTWALL_PUBLISHER_KEY_ENCRYPTION_KEY` env or `publisherAPIKeyEncryptionKeyFile`. |
+| `publisherAPIKeyEncryptionKeyFile` | empty | No | Path to 32-byte encryption key material (alternative to env). |
 | `policy.globalPolicy` | `deny` | No | Default policy when category path has no explicit rule (`allow` or `deny`). |
 | `policy.rules` | `{}` | No | Category policy map (`<category-path>` -> `allow`/`deny`). Longest-prefix match is applied. |
 | `policy.botOverrides` | `{}` | No | Per-bot overrides (`<bot-slug>` -> `allow`/`deny`) applied after category decision. |
@@ -178,8 +185,25 @@ http:
 - **Client IP:** the resolved address is stored in the access event as `remote_logname` (Apache combined–style field). Resolution order: if `trustedProxyCIDRs` is set, only trust forwarded headers when the TCP peer is in those CIDRs; otherwise use `RemoteAddr`. If `trustedProxyCIDRs` is empty, headers `CF-Connecting-IP` → `X-Forwarded-For` (first parseable hop) → `X-Real-IP` are still consulted for compatibility (treat as untrusted for access-control decisions unless you configure `trustedProxyCIDRs`).
 - **IP verification / softmax:** when remote bot rules include `ipVerification.bots` (from the portal JSON) and `enableIPSoftmax: true`, the plugin applies UA+IP softmax and anti-spoof rules (winner must match published IP ranges when ranges exist; legacy UA-only claims can be denied). With `enableIPSoftmax: false`, classification is UA/category-based only; IP lists in rules are not used for enforcement.
 - `publisherLogsURL` must be `https://` unless `allowInsecureBotRulesURL: true` (same dev escape hatch as `botRulesURL`).
-- `publisherAPIKey` is required when `publisherLogsURL` is set; startup fails fast otherwise (the plugin never ships unauthenticated).
+- `publisherAPIKey` or an existing `publisherAPIKeyStateFile` with a secret is required when `publisherLogsURL` is set.
+- `publisherAPIKeyRotationEnabled` defaults to **`true`** when `publisherLogsURL` is set (omit the field to keep automatic rotation).
 - `publisherLogsInterval` must be greater than `0` (for example `1m`, `5m`).
+- `publisherAPIKeyMetadataSyncInterval` must be greater than `0`.
+
+## Publisher API key rotation (proactive)
+
+When `publisherLogsURL` is set and `publisherAPIKeyRotationEnabled` is not `false`:
+
+1. On startup the plugin loads the live secret from `publisherAPIKeyStateFile` when present, otherwise from `publisherAPIKey` (bootstrap).
+2. It calls `GET {apiBase}/account/publisher/api-keys/current/` to sync `expiration_date` and related metadata.
+3. When `now >= expiration_date - publisherAPIKeyRotationBufferDays` and `status` is `active`, it calls `PUT .../api-keys/{key_id}/?op=rotate` and persists the new `secret` to the state file.
+4. A daily metadata ticker and a sleep-until-due timer reschedule the next rotation.
+
+Log shipping uses the state-file secret via `X-API-KEY`. Failed ships (`401`/`403`) are logged and retried later; the plugin does **not** rotate on ship failure in this version.
+
+**Manual mode:** `publisherAPIKeyRotationEnabled: false` — no background rotation; operators must renew keys in the Recognyze portal and update bootstrap YAML and/or the state file.
+
+**Encryption:** enable `publisherAPIKeyEncryptAtRest` and supply a 32-byte key via environment variable `BOTWALL_PUBLISHER_KEY_ENCRYPTION_KEY` (base64 or raw) or `publisherAPIKeyEncryptionKeyFile`.
 
 ## Decision log and publisher logs shipping
 
@@ -189,7 +213,7 @@ If `publisherLogsURL` is set, `publisherAPIKey` is set, and `publisherLogsInterv
 
 - A **background loop** runs at `publisherLogsInterval` and calls the ship routine.
 - On each append, if enough time has passed since the last ship, the plugin may also ship in the background after the write.
-- The shipped request is `POST {publisherLogsURL}` with headers `Content-Type: application/jsonl`, `Accept: application/json`, and `X-API-KEY: <publisherAPIKey>`. The body is the current contents of the JSONL file (metadata envelope first line followed by one `AccessLogEvent` per line).
+- The shipped request is `POST {publisherLogsURL}` with headers `Content-Type: application/jsonl`, `Accept: application/json`, and `X-API-KEY: <live secret from state file or bootstrap>`. The body is the current contents of the JSONL file (metadata envelope first line followed by one `AccessLogEvent` per line).
 - The portal accepts the shipped `application/jsonl` body and an alternative single JSON array payload with the same `AccessLogEvent` schema per record.
 - A successful ship (HTTP 2xx) **truncates** the file (clears log contents; metadata is recreated on the next write). Failed ships leave the file intact and the next ticker iteration retries.
 

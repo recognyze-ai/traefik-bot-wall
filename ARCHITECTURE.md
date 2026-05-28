@@ -53,7 +53,13 @@ Core design goals:
    - On deny: emits the exact 403 contract.
    - On allow: records the upstream response status via a response wrapper for accurate `signed_visit` logging.
    - Logs both blocked and allowed protected requests as structured JSONL events. The client IP is emitted in the **`remote_logname`** field (Apache combined–style); see `logging.go`.
-   - Optionally ships accumulated `application/jsonl` records to the Recognyze portal at `publisherLogsURL` (authenticated with `X-API-KEY: <publisherAPIKey>`) on a timer and after writes (see `CONFIGURATION.md` “Decision log and publisher logs shipping”).
+   - Optionally ships accumulated `application/jsonl` records to the Recognyze portal at `publisherLogsURL` (authenticated with the live secret from `PublisherKeyManager`) on a timer and after writes (see `CONFIGURATION.md`).
+
+6. **Publisher API key manager** (`publisher_api_key.go`, `publisher_key_crypto.go`)
+   - Loads bootstrap `publisherAPIKey` from Traefik config; persists rotated secrets in `publisherAPIKeyStateFile` (YAML is never rewritten).
+   - Proactive rotation before `expiration_date` (default 14-day buffer): metadata sync via `GET .../api-keys/current/`, rotate via `PUT ...?op=rotate`.
+   - Optional AES-256-GCM encryption at rest for the state-file secret.
+   - Enabled by default when `publisherLogsURL` is set; opt out with `publisherAPIKeyRotationEnabled: false` for manual key management.
 
 ## 2) File Responsibilities
 
@@ -62,12 +68,12 @@ Core design goals:
 - `main.go`
   - Plugin entrypoint (`New`) and request handling (`ServeHTTP`).
   - Wires resolver, classifier, softmax gate, policy evaluator, enforcer, and logger.
-  - Passes `trustedProxyNets` into client IP extraction; starts the event log shipping loop when configured.
+  - Passes `trustedProxyNets` into client IP extraction; constructs `PublisherKeyManager`, starts rotation loop and event log shipping when configured.
 
 - `config.go`
   - Middleware configuration schema.
   - Defaults (`24h` protected-path TTL, `1h` pre-expiry refresh, `5m` event-ship interval when logging is used, production default `botRulesURL`, softmax weights `4`/`4`).
-  - Validation and normalization of config values (including trusted proxy CIDR parsing, `publisherLogsURL` / `publisherAPIKey` / `publisherLogsInterval`, the require-key-when-URL-set rule, and shared `allowInsecureBotRulesURL` for dev HTTP URLs).
+  - Validation and normalization of config values (including trusted proxy CIDR parsing, publisher logs/rotation/encryption settings, and shared `allowInsecureBotRulesURL` for dev HTTP URLs).
 
 - `defaults.go`
   - Loads baseline default bot rules from `defaultBotDef.json`.

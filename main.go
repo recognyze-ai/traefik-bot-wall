@@ -33,7 +33,18 @@ func New(_ context.Context, next http.Handler, cfg *Config, name string) (http.H
 		return nil, err
 	}
 
-	logger := NewEventLogger(parsed)
+	keyManager, err := NewPublisherKeyManager(parsed)
+	if err != nil {
+		return nil, err
+	}
+	if keyManager != nil && parsed.publisherAPIKeyRotationEnabled {
+		if err := keyManager.RefreshMetadata(); err != nil {
+			log.Printf("[botwall] publisher API key metadata sync on startup failed: %v", err)
+		}
+		keyManager.StartRotationLoop()
+	}
+
+	logger := NewEventLogger(parsed, keyManager)
 	logger.StartShippingLoop()
 
 	return &Botwall{

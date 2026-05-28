@@ -20,7 +20,7 @@ func TestEventLoggerWritesInlineMetadataHeader(t *testing.T) {
 			DecisionLogFile: logPath,
 		},
 		publisherLogsInterval: time.Minute,
-	})
+	}, nil)
 
 	req := httptest.NewRequest(http.MethodGet, "http://myapp.localhost/", nil)
 	req.Header.Set("User-Agent", "test-ua")
@@ -73,14 +73,21 @@ func TestEventLoggerShipAndTruncateClearsFileContent(t *testing.T) {
 	}))
 	defer server.Close()
 
-	logger := NewEventLogger(&parsedConfig{
-		Config: Config{
-			DecisionLogFile:  logPath,
-			PublisherLogsURL: server.URL,
-			PublisherAPIKey:  "test-api-key",
-		},
-		publisherLogsInterval: time.Minute,
+	parsed, err := parseAndNormalizeConfig(&Config{
+		DecisionLogFile:          logPath,
+		PublisherLogsURL:         server.URL + "/api/v1/publisher/logs/",
+		PublisherAPIKey:          "test-api-key",
+		AllowInsecureBotRulesURL: true,
 	})
+	if err != nil {
+		t.Fatalf("parse config: %v", err)
+	}
+	parsed.PublisherAPIBaseURL = server.URL + "/api/v1"
+	keyManager, err := NewPublisherKeyManager(parsed)
+	if err != nil {
+		t.Fatalf("NewPublisherKeyManager: %v", err)
+	}
+	logger := NewEventLogger(parsed, keyManager)
 	req := httptest.NewRequest(http.MethodGet, "http://myapp.localhost/", nil)
 	logger.Log(BuildAccessLogEvent(req, "10.0.0.1", 200, 0))
 
@@ -125,9 +132,10 @@ func TestEventLoggerShipFailsOnJSONErrorField(t *testing.T) {
 		Config: Config{
 			DecisionLogFile:  logPath,
 			PublisherLogsURL: server.URL,
+			PublisherAPIKey:  "test-api-key",
 		},
 		publisherLogsInterval: time.Minute,
-	})
+	}, nil)
 	req := httptest.NewRequest(http.MethodGet, "http://myapp.localhost/", nil)
 	logger.Log(BuildAccessLogEvent(req, "10.0.0.1", 200, 0))
 

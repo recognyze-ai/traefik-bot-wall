@@ -34,6 +34,7 @@ temp/
 .env.*
 !.env.example
 *.local
+data/traefik/
 
 # --- Traefik local override configs (keep shared examples committed) ---
 traefik.local.yml

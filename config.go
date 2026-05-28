@@ -14,7 +14,10 @@ const (
 	defaultRefreshBeforeExpiry   = "1h"
 	defaultRefreshJitter         = "5m"
 	defaultRulesRefresh          = "6h"
-	defaultPublisherLogsInterval = "5m"
+	defaultPublisherLogsInterval         = "5m"
+	defaultPublisherAPIKeyStateFile        = "/tmp/botwall_publisher_api_key.json"
+	defaultPublisherAPIKeyRotationBuffer = 14
+	defaultPublisherAPIMetadataSync        = "24h"
 
 	defaultRulesCache   = "/tmp/botwall_rules_cache.json"
 	defaultIndexCache   = "/tmp/botwall_recognyze_cache.json"
@@ -65,17 +68,33 @@ type Config struct {
 	// Required when PublisherLogsURL is set; protect the surrounding YAML file with filesystem permissions.
 	PublisherAPIKey       string `json:"publisherAPIKey,omitempty"       yaml:"publisherAPIKey,omitempty"`
 	PublisherLogsInterval string `json:"publisherLogsInterval,omitempty" yaml:"publisherLogsInterval,omitempty"`
-	DenyInfoURL           string `json:"denyInfoURL,omitempty" yaml:"denyInfoURL,omitempty"`
+
+	// PublisherAPIKeyStateFile stores the live API secret and metadata after proactive rotation (YAML key is bootstrap only).
+	PublisherAPIKeyStateFile string `json:"publisherAPIKeyStateFile,omitempty" yaml:"publisherAPIKeyStateFile,omitempty"`
+	// PublisherAPIBaseURL overrides API base derived from publisherLogsURL (…/api/v1).
+	PublisherAPIBaseURL string `json:"publisherAPIBaseURL,omitempty" yaml:"publisherAPIBaseURL,omitempty"`
+	// PublisherAPIKeyRotationEnabled: nil omits → true when publisherLogsURL is set. false = manual key management.
+	PublisherAPIKeyRotationEnabled *bool `json:"publisherAPIKeyRotationEnabled,omitempty" yaml:"publisherAPIKeyRotationEnabled,omitempty"`
+	PublisherAPIKeyRotationBufferDays int `json:"publisherAPIKeyRotationBufferDays,omitempty" yaml:"publisherAPIKeyRotationBufferDays,omitempty"`
+	PublisherAPIKeyMetadataSyncInterval string `json:"publisherAPIKeyMetadataSyncInterval,omitempty" yaml:"publisherAPIKeyMetadataSyncInterval,omitempty"`
+	PublisherAPIKeyEncryptAtRest       *bool  `json:"publisherAPIKeyEncryptAtRest,omitempty" yaml:"publisherAPIKeyEncryptAtRest,omitempty"`
+	PublisherAPIKeyEncryptionKeyFile   string `json:"publisherAPIKeyEncryptionKeyFile,omitempty" yaml:"publisherAPIKeyEncryptionKeyFile,omitempty"`
+
+	DenyInfoURL string `json:"denyInfoURL,omitempty" yaml:"denyInfoURL,omitempty"`
 }
 
 type parsedConfig struct {
 	Config
-	trustedProxyNets      []*net.IPNet
-	cacheTTL              time.Duration
-	refreshBeforeExpiry   time.Duration
-	refreshJitter         time.Duration
-	rulesRefresh          time.Duration
-	publisherLogsInterval time.Duration
+	trustedProxyNets                    []*net.IPNet
+	cacheTTL                            time.Duration
+	refreshBeforeExpiry                 time.Duration
+	refreshJitter                       time.Duration
+	rulesRefresh                        time.Duration
+	publisherLogsInterval               time.Duration
+	publisherAPIKeyRotationEnabled      bool
+	publisherAPIKeyRotationBufferDays   int
+	publisherAPIKeyMetadataSyncInterval time.Duration
+	publisherAPIKeyEncryptAtRest        bool
 }
 
 func CreateConfig() *Config {
@@ -141,6 +160,29 @@ func applyConfigDefaults(cfg *Config) {
 	if cfg.SoftmaxBeta <= 0 {
 		cfg.SoftmaxBeta = 4
 	}
+	if strings.TrimSpace(cfg.PublisherAPIKeyStateFile) == "" {
+		cfg.PublisherAPIKeyStateFile = defaultPublisherAPIKeyStateFile
+	}
+	if cfg.PublisherAPIKeyRotationBufferDays <= 0 {
+		cfg.PublisherAPIKeyRotationBufferDays = defaultPublisherAPIKeyRotationBuffer
+	}
+	if strings.TrimSpace(cfg.PublisherAPIKeyMetadataSyncInterval) == "" {
+		cfg.PublisherAPIKeyMetadataSyncInterval = defaultPublisherAPIMetadataSync
+	}
+}
+
+func resolvePublisherAPIKeyRotationEnabled(cfg *Config) bool {
+	if cfg.PublisherAPIKeyRotationEnabled != nil {
+		return *cfg.PublisherAPIKeyRotationEnabled
+	}
+	return strings.TrimSpace(cfg.PublisherLogsURL) != ""
+}
+
+func resolvePublisherAPIKeyEncryptAtRest(cfg *Config) bool {
+	if cfg.PublisherAPIKeyEncryptAtRest != nil {
+		return *cfg.PublisherAPIKeyEncryptAtRest
+	}
+	return false
 }
 
 func validateBotRulesFilePaths(cfg *Config) error {
@@ -159,11 +201,12 @@ func validateBotRulesFilePaths(cfg *Config) error {
 }
 
 type configDurations struct {
-	cacheTTL              time.Duration
-	refreshBeforeExpiry   time.Duration
-	refreshJitter         time.Duration
-	rulesRefresh          time.Duration
-	publisherLogsInterval time.Duration
+	cacheTTL                            time.Duration
+	refreshBeforeExpiry                 time.Duration
+	refreshJitter                       time.Duration
+	rulesRefresh                        time.Duration
+	publisherLogsInterval               time.Duration
+	publisherAPIKeyMetadataSyncInterval time.Duration
 }
 
 func parseConfigDurations(cfg *Config) (configDurations, error) {
@@ -184,12 +227,18 @@ func parseConfigDurations(cfg *Config) (configDurations, error) {
 	if d.publisherLogsInterval, err = time.ParseDuration(cfg.PublisherLogsInterval); err != nil {
 		return d, fmt.Errorf("invalid publisherLogsInterval: %w", err)
 	}
+	if d.publisherAPIKeyMetadataSyncInterval, err = time.ParseDuration(cfg.PublisherAPIKeyMetadataSyncInterval); err != nil {
+		return d, fmt.Errorf("invalid publisherAPIKeyMetadataSyncInterval: %w", err)
+	}
 	return d, nil
 }
 
 func validateConfigTiming(d configDurations) error {
 	if d.publisherLogsInterval <= 0 {
 		return fmt.Errorf("publisherLogsInterval must be greater than 0")
+	}
+	if d.publisherAPIKeyMetadataSyncInterval <= 0 {
+		return fmt.Errorf("publisherAPIKeyMetadataSyncInterval must be greater than 0")
 	}
 	if d.refreshBeforeExpiry >= d.cacheTTL {
 		return fmt.Errorf("refreshBeforeExpiry must be lower than cacheTTL")
@@ -226,8 +275,21 @@ func validatePublisherLogsConfig(cfg *Config) error {
 	if strings.TrimSpace(cfg.PublisherLogsURL) == "" {
 		return nil
 	}
-	if strings.TrimSpace(cfg.PublisherAPIKey) == "" {
-		return fmt.Errorf("publisherAPIKey is required when publisherLogsURL is set")
+	bootstrap := strings.TrimSpace(cfg.PublisherAPIKey)
+	encrypt := resolvePublisherAPIKeyEncryptAtRest(cfg)
+	var encKey []byte
+	if encrypt {
+		var err error
+		encKey, err = loadPublisherEncryptionKey(cfg.PublisherAPIKeyEncryptionKeyFile)
+		if err != nil {
+			return fmt.Errorf("publisherAPIKeyEncryptAtRest: %w", err)
+		}
+	}
+	if bootstrap == "" && !publisherKeyStateHasSecret(cfg.PublisherAPIKeyStateFile, encrypt, encKey) {
+		return fmt.Errorf("publisherAPIKey or an existing publisherAPIKeyStateFile with a secret is required when publisherLogsURL is set")
+	}
+	if _, err := resolvePublisherAPIBaseURL(cfg.PublisherLogsURL, cfg.PublisherAPIBaseURL); err != nil {
+		return fmt.Errorf("publisher API base URL: %w", err)
 	}
 	return nil
 }
@@ -262,14 +324,20 @@ func parseAndNormalizeConfig(input *Config) (*parsedConfig, error) {
 		return nil, err
 	}
 
+	encrypt := resolvePublisherAPIKeyEncryptAtRest(cfg)
+
 	return &parsedConfig{
-		Config:                *cfg,
-		trustedProxyNets:      nets,
-		cacheTTL:              durations.cacheTTL,
-		refreshBeforeExpiry:   durations.refreshBeforeExpiry,
-		refreshJitter:         durations.refreshJitter,
-		rulesRefresh:          durations.rulesRefresh,
-		publisherLogsInterval: durations.publisherLogsInterval,
+		Config:                              *cfg,
+		trustedProxyNets:                    nets,
+		cacheTTL:                            durations.cacheTTL,
+		refreshBeforeExpiry:                 durations.refreshBeforeExpiry,
+		refreshJitter:                       durations.refreshJitter,
+		rulesRefresh:                        durations.rulesRefresh,
+		publisherLogsInterval:               durations.publisherLogsInterval,
+		publisherAPIKeyRotationEnabled:      resolvePublisherAPIKeyRotationEnabled(cfg),
+		publisherAPIKeyRotationBufferDays:   cfg.PublisherAPIKeyRotationBufferDays,
+		publisherAPIKeyMetadataSyncInterval: durations.publisherAPIKeyMetadataSyncInterval,
+		publisherAPIKeyEncryptAtRest:        encrypt,
 	}, nil
 }
 

@@ -101,7 +101,7 @@ func TestParseAndNormalizeConfigRequiresPublisherAPIKeyWhenURLSet(t *testing.T) 
 	if err == nil {
 		t.Fatalf("expected error when publisherLogsURL is set without publisherAPIKey")
 	}
-	if !strings.Contains(err.Error(), "publisherAPIKey is required") {
+	if !strings.Contains(err.Error(), "publisherAPIKey") {
 		t.Fatalf("unexpected error message: %v", err)
 	}
 }
