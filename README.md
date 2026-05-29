@@ -142,6 +142,7 @@ If you want to simulate catalog conditions, tag a release and switch to `experim
 - CI workflow: [`.github/workflows/ci.yml`](https://github.com/recognyze-ai/traefik-bot-wall/actions/workflows/ci.yml)
 - Checks on each PR and push to `main`:
   - `go test ./...`
+  - [Go Report Card](https://goreportcard.com/report/github.com/recognyze-ai/traefik-bot-wall) parity (`gofmt -s`, `gocyclo` max 15) via `scripts/check-reportcard.sh`
   - `golangci-lint` (configured by `.golangci.yml`)
 
 ## Release checklist
@@ -151,6 +152,7 @@ If you want to simulate catalog conditions, tag a release and switch to `experim
 - Verify `testData` in `.traefik.yml` points to files committed in the repository.
 - Run quality gates locally:
   - `go test ./...`
+  - `bash scripts/check-reportcard.sh` (or `powershell -File scripts/check-reportcard.ps1` on Windows)
   - `golangci-lint run`
 - Create and push a semantic version tag (for example `v0.1.0`).
 - After tagging, check [GitHub Actions](https://github.com/recognyze-ai/traefik-bot-wall/actions/workflows/ci.yml) and the Traefik plugin catalog status.

@@ -18,7 +18,7 @@ import (
 
 const (
 	publisherRotationLockDuration = 2 * time.Minute
-	publisherMinRotationSleep       = time.Minute
+	publisherMinRotationSleep     = time.Minute
 )
 
 type publisherKeyState struct {

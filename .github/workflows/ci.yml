@@ -30,6 +30,25 @@ jobs:
       - name: Run tests
         run: go test ./...
 
+  reportcard:
+    name: Go Report Card
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Setup Go
+        uses: actions/setup-go@v5
+        with:
+          go-version-file: go.mod
+          cache: true
+
+      - name: Install gocyclo
+        run: go install github.com/fzipp/gocyclo/cmd/gocyclo@latest
+
+      - name: Run report card checks
+        run: bash scripts/check-reportcard.sh
+
   lint:
     name: Lint
     runs-on: ubuntu-latest

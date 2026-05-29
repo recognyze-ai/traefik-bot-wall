@@ -297,27 +297,38 @@ func (l *EventLogger) shipAndTruncateOnce() error {
 	if len(body) == 0 || len(firstLine) == 0 {
 		return nil
 	}
+	if err := l.postPublisherLogsLocked(body); err != nil {
+		return err
+	}
+	return l.resetLogAfterShipLocked()
+}
 
+func (l *EventLogger) postPublisherLogsLocked(body []byte) error {
 	req, err := http.NewRequest(http.MethodPost, l.publisherLogsURL, bytes.NewReader(body))
 	if err != nil {
 		return err
 	}
 	req.Header.Set("Content-Type", "application/jsonl")
 	req.Header.Set("Accept", "application/json")
-	apiKey := ""
-	if l.keyManager != nil {
-		apiKey = l.keyManager.Secret()
-	}
-	if apiKey != "" {
+	if apiKey := l.publisherAPIKeyForShip(); apiKey != "" {
 		req.Header.Set("X-API-KEY", apiKey)
 	}
 	resp, err := l.shipHTTPClient.Do(req)
 	if err != nil {
 		return err
 	}
-	defer func() {
-		_ = resp.Body.Close()
-	}()
+	defer func() { _ = resp.Body.Close() }()
+	return checkPublisherLogsResponse(resp)
+}
+
+func (l *EventLogger) publisherAPIKeyForShip() string {
+	if l.keyManager == nil {
+		return ""
+	}
+	return l.keyManager.Secret()
+}
+
+func checkPublisherLogsResponse(resp *http.Response) error {
 	respBody, _ := io.ReadAll(io.LimitReader(resp.Body, 1024))
 	if resp.StatusCode < 200 || resp.StatusCode >= 300 {
 		return fmt.Errorf("publisher logs endpoint returned %d: %s", resp.StatusCode, strings.TrimSpace(string(respBody)))
@@ -325,9 +336,12 @@ func (l *EventLogger) shipAndTruncateOnce() error {
 	if jsonAPIError(resp.Header.Get("Content-Type"), respBody) {
 		return fmt.Errorf("publisher logs endpoint returned error=true: %s", strings.TrimSpace(string(respBody)))
 	}
+	return nil
+}
 
-	// Keep the file but clear all contents after a successful ship.
-	// Metadata will be re-created lazily on the next event write.
+// resetLogAfterShipLocked clears the log file after a successful ship.
+// Metadata will be re-created lazily on the next event write.
+func (l *EventLogger) resetLogAfterShipLocked() error {
 	if err := os.Truncate(l.path, 0); err != nil {
 		return err
 	}
