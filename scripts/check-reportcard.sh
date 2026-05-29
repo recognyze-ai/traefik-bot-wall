@@ -19,7 +19,7 @@ if ! command -v gocyclo >/dev/null 2>&1; then
   go install github.com/fzipp/gocyclo/cmd/gocyclo@latest
   export PATH="${PATH}:$(go env GOPATH)/bin"
 fi
-if gocyclo -over 15 .; then
+if ! gocyclo -over 15 .; then
   echo "functions exceed cyclomatic complexity 15" >&2
   exit 1
 fi

@@ -12,6 +12,10 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - Local Go Report Card checks: `scripts/check-reportcard.sh` and `scripts/check-reportcard.ps1` (`gofmt -s`, `gocyclo` max 15).
 - CI job **Go Report Card** in `.github/workflows/ci.yml` (same checks as [goreportcard.com](https://goreportcard.com/report/github.com/recognyze-ai/traefik-bot-wall)).
 
+### Fixed
+
+- `scripts/check-reportcard.sh`: treat `gocyclo -over 15` exit code 1 as failure (condition was inverted, so CI failed when complexity was within limits).
+
 ### Changed
 
 - `gofmt -s` applied across Go sources (Go Report Card `gofmt`).
