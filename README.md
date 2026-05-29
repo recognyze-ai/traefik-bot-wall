@@ -3,7 +3,6 @@
 # Recognyze Bot Wall Traefik Plugin
 
 [![Go Report Card](https://goreportcard.com/badge/github.com/recognyze-ai/traefik-bot-wall)](https://goreportcard.com/report/github.com/recognyze-ai/traefik-bot-wall)
-
 [![CI](https://github.com/recognyze-ai/traefik-bot-wall/actions/workflows/ci.yml/badge.svg)](https://github.com/recognyze-ai/traefik-bot-wall/actions/workflows/ci.yml)
 
 Yaegi middleware plugin for Traefik that enforces Recognyze botwall policy.
