@@ -5,7 +5,17 @@ All notable changes to the [Recognyze Bot Wall Traefik Plugin](https://github.co
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
-## [Unreleased]
+## [0.4.0]
+
+### Added
+
+- Proactive publisher API key rotation before `expiration_date` (default 14-day buffer, WordPress plugin parity).
+- `PublisherKeyManager` with encrypted state file (`publisherAPIKeyStateFile`), metadata sync, and background rotation loop.
+- Config: `publisherAPIKeyRotationEnabled` (default on when `publisherLogsURL` is set), `publisherAPIKeyRotationBufferDays`, `publisherAPIKeyMetadataSyncInterval`, `publisherAPIKeyEncryptAtRest`, `publisherAPIKeyEncryptionKeyFile`, `publisherAPIBaseURL`.
+
+### Changed
+
+- Publisher log shipping uses the live secret from the state file (bootstrap `publisherAPIKey` in YAML is not updated by the plugin).
 
 ## [0.3.0] - 2026-05-21
 ### Initial changelog tracking

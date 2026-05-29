@@ -125,7 +125,7 @@ func BuildAccessLogEvent(req *http.Request, clientIP string, status, bytesSent i
 type EventLogger struct {
 	path                  string
 	publisherLogsURL      string
-	publisherAPIKey       string
+	keyManager            *PublisherKeyManager
 	publisherLogsInterval time.Duration
 	shipHTTPClient        *http.Client
 	mu                    sync.Mutex
@@ -163,15 +163,15 @@ func sanitizeUserAgent(userAgent string) string {
 	return sanitized
 }
 
-func NewEventLogger(cfg *parsedConfig) *EventLogger {
+func NewEventLogger(cfg *parsedConfig, keyManager *PublisherKeyManager) *EventLogger {
 	if cfg == nil || strings.TrimSpace(cfg.DecisionLogFile) == "" {
-		return &EventLogger{}
+		return &EventLogger{keyManager: keyManager}
 	}
 
 	return &EventLogger{
 		path:                  cfg.DecisionLogFile,
 		publisherLogsURL:      strings.TrimSpace(cfg.PublisherLogsURL),
-		publisherAPIKey:       strings.TrimSpace(cfg.PublisherAPIKey),
+		keyManager:            keyManager,
 		publisherLogsInterval: cfg.publisherLogsInterval,
 		shipHTTPClient: &http.Client{
 			Timeout: 15 * time.Second,
@@ -304,8 +304,12 @@ func (l *EventLogger) shipAndTruncateOnce() error {
 	}
 	req.Header.Set("Content-Type", "application/jsonl")
 	req.Header.Set("Accept", "application/json")
-	if l.publisherAPIKey != "" {
-		req.Header.Set("X-API-KEY", l.publisherAPIKey)
+	apiKey := ""
+	if l.keyManager != nil {
+		apiKey = l.keyManager.Secret()
+	}
+	if apiKey != "" {
+		req.Header.Set("X-API-KEY", apiKey)
 	}
 	resp, err := l.shipHTTPClient.Do(req)
 	if err != nil {
