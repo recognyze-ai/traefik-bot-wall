@@ -5,6 +5,18 @@ All notable changes to the [Recognyze Bot Wall Traefik Plugin](https://github.co
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [0.5.0]
+
+### Added
+
+- Local Go Report Card checks: `scripts/check-reportcard.sh` and `scripts/check-reportcard.ps1` (`gofmt -s`, `gocyclo` max 15).
+- CI job **Go Report Card** in `.github/workflows/ci.yml` (same checks as [goreportcard.com](https://goreportcard.com/report/github.com/recognyze-ai/traefik-bot-wall)).
+
+### Changed
+
+- `gofmt -s` applied across Go sources (Go Report Card `gofmt`).
+- Refactored `(*EventLogger).shipAndTruncateOnce` in `logging.go` to lower cyclomatic complexity (Go Report Card `gocyclo`).
+
 ## [0.4.0]
 
 ### Added
