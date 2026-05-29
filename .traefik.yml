@@ -1,7 +1,7 @@
 displayName: Recognyze Botwall Plugin
 type: middleware
 import: github.com/recognyze-ai/traefik-bot-wall
-iconPath: .assets/recognyze-logo.png
+iconPath: .assets/r7e_icon.png
 
 summary: Recognyze botwall middleware plugin evaluates incoming requests against Recognyze bot rules and allows or blocks traffic before it reaches your upstream service.
 

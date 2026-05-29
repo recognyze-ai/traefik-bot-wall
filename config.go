@@ -10,14 +10,14 @@ import (
 )
 
 const (
-	defaultCacheTTL              = "24h"
-	defaultRefreshBeforeExpiry   = "1h"
-	defaultRefreshJitter         = "5m"
-	defaultRulesRefresh          = "6h"
+	defaultCacheTTL                      = "24h"
+	defaultRefreshBeforeExpiry           = "1h"
+	defaultRefreshJitter                 = "5m"
+	defaultRulesRefresh                  = "6h"
 	defaultPublisherLogsInterval         = "5m"
-	defaultPublisherAPIKeyStateFile        = "/tmp/botwall_publisher_api_key.json"
+	defaultPublisherAPIKeyStateFile      = "/tmp/botwall_publisher_api_key.json"
 	defaultPublisherAPIKeyRotationBuffer = 14
-	defaultPublisherAPIMetadataSync        = "24h"
+	defaultPublisherAPIMetadataSync      = "24h"
 
 	defaultRulesCache   = "/tmp/botwall_rules_cache.json"
 	defaultIndexCache   = "/tmp/botwall_recognyze_cache.json"
@@ -74,11 +74,11 @@ type Config struct {
 	// PublisherAPIBaseURL overrides API base derived from publisherLogsURL (…/api/v1).
 	PublisherAPIBaseURL string `json:"publisherAPIBaseURL,omitempty" yaml:"publisherAPIBaseURL,omitempty"`
 	// PublisherAPIKeyRotationEnabled: nil omits → true when publisherLogsURL is set. false = manual key management.
-	PublisherAPIKeyRotationEnabled *bool `json:"publisherAPIKeyRotationEnabled,omitempty" yaml:"publisherAPIKeyRotationEnabled,omitempty"`
-	PublisherAPIKeyRotationBufferDays int `json:"publisherAPIKeyRotationBufferDays,omitempty" yaml:"publisherAPIKeyRotationBufferDays,omitempty"`
+	PublisherAPIKeyRotationEnabled      *bool  `json:"publisherAPIKeyRotationEnabled,omitempty" yaml:"publisherAPIKeyRotationEnabled,omitempty"`
+	PublisherAPIKeyRotationBufferDays   int    `json:"publisherAPIKeyRotationBufferDays,omitempty" yaml:"publisherAPIKeyRotationBufferDays,omitempty"`
 	PublisherAPIKeyMetadataSyncInterval string `json:"publisherAPIKeyMetadataSyncInterval,omitempty" yaml:"publisherAPIKeyMetadataSyncInterval,omitempty"`
-	PublisherAPIKeyEncryptAtRest       *bool  `json:"publisherAPIKeyEncryptAtRest,omitempty" yaml:"publisherAPIKeyEncryptAtRest,omitempty"`
-	PublisherAPIKeyEncryptionKeyFile   string `json:"publisherAPIKeyEncryptionKeyFile,omitempty" yaml:"publisherAPIKeyEncryptionKeyFile,omitempty"`
+	PublisherAPIKeyEncryptAtRest        *bool  `json:"publisherAPIKeyEncryptAtRest,omitempty" yaml:"publisherAPIKeyEncryptAtRest,omitempty"`
+	PublisherAPIKeyEncryptionKeyFile    string `json:"publisherAPIKeyEncryptionKeyFile,omitempty" yaml:"publisherAPIKeyEncryptionKeyFile,omitempty"`
 
 	DenyInfoURL string `json:"denyInfoURL,omitempty" yaml:"denyInfoURL,omitempty"`
 }

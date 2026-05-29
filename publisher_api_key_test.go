@@ -63,9 +63,9 @@ func TestSecretPrefersStateFileOverBootstrap(t *testing.T) {
 	}
 
 	cfg, err := parseAndNormalizeConfig(&Config{
-		PublisherLogsURL:              "https://portal.dev.recognyze.ai/api/v1/publisher/logs/",
-		PublisherAPIKey:               "sk_BOOTSTRAP_secretpart",
-		PublisherAPIKeyStateFile:      statePath,
+		PublisherLogsURL:               "https://portal.dev.recognyze.ai/api/v1/publisher/logs/",
+		PublisherAPIKey:                "sk_BOOTSTRAP_secretpart",
+		PublisherAPIKeyStateFile:       statePath,
 		PublisherAPIKeyRotationEnabled: ptrBool(false),
 	})
 	if err != nil {
@@ -151,7 +151,7 @@ func TestProactiveRotateUpdatesState(t *testing.T) {
 		PublisherLogsURL:                  logsURL,
 		PublisherAPIKey:                   "sk_OLD_secretpart",
 		PublisherAPIKeyStateFile:          statePath,
-		PublisherAPIKeyRotationBufferDays:   14,
+		PublisherAPIKeyRotationBufferDays: 14,
 		AllowInsecureBotRulesURL:          true,
 	})
 	if err != nil {
@@ -210,10 +210,10 @@ func TestProactiveRotateSkippedWhenNotActive(t *testing.T) {
 	defer api.Close()
 
 	cfg, err := parseAndNormalizeConfig(&Config{
-		PublisherLogsURL:           api.URL + "/api/v1/publisher/logs/",
-		PublisherAPIKey:            "sk_OLD_secret",
-		PublisherAPIKeyStateFile:   filepath.Join(t.TempDir(), "state.json"),
-		AllowInsecureBotRulesURL:   true,
+		PublisherLogsURL:         api.URL + "/api/v1/publisher/logs/",
+		PublisherAPIKey:          "sk_OLD_secret",
+		PublisherAPIKeyStateFile: filepath.Join(t.TempDir(), "state.json"),
+		AllowInsecureBotRulesURL: true,
 	})
 	if err != nil {
 		t.Fatal(err)
