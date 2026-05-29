@@ -4,7 +4,10 @@
 
 [![Go Report Card](https://goreportcard.com/badge/github.com/recognyze-ai/traefik-bot-wall)](https://goreportcard.com/report/github.com/recognyze-ai/traefik-bot-wall)
 [![CI](https://github.com/recognyze-ai/traefik-bot-wall/actions/workflows/ci.yml/badge.svg)](https://github.com/recognyze-ai/traefik-bot-wall/actions/workflows/ci.yml)
-![Go Version](https://img.shields.io/github/go-mod/go-version/acouvreur/sablier?style=flat-square)
+![GitHub go.mod Go version](https://img.shields.io/github/go-mod/go-version/recognyze-ai/traefik-bot-wall)
+![GitHub tag (latest SemVer)](https://img.shields.io/github/v/tag/recognyze-ai/traefik-bot-wall)
+[![License](https://img.shields.io/badge/License-MIT-green.svg)](https://github.com/recognyze-ai/traefik-bot-wall/blob/main/LICENSE)
+
 
 Yaegi middleware plugin for Traefik that enforces Recognyze botwall policy.
 
