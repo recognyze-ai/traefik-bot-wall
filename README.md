@@ -1,4 +1,4 @@
-![Recognyze.ai](assets/r7e_banner_traefik.png)
+![Recognyze.ai](https://github.com/recognyze-ai/traefik-bot-wall/blob/main/assets/r7e_banner_traefik.png)
 
 # Recognyze Bot Wall Traefik Plugin
 
